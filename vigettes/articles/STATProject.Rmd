@@ -1,0 +1,322 @@
+---
+title: "STATProject"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+vignette: |
+  %\VignetteIndexEntry{STATProject} %\VignetteEngine{knitr::rmarkdown} %\VignetteEncoding{UTF-8}
+params:
+  data_file: project.csv
+bibliography: Project.bib
+nocite: '@*'
+---
+
+```{r setup, include=FALSE}
+# Examiners: For High Distinction, I have interpreted that you would alter the output in YAML to html or use a different data file with same structure. If you were to change the data file name, please insert that name in the params-data_file in the YAML!
+
+knitr::opts_chunk$set(echo = FALSE)
+
+packages <- c("tidyverse", "knitr", "rmarkdown","roxygen2","testthat","usethis","devtools","ggplot2","ggrepel","stats","kableExtra","bookdown","shiny","patchwork","dplyr")
+lapply(packages, library, character.only=TRUE)
+dat <- read.csv(params$data_file)
+```
+
+\tableofcontents
+\pagebreak
+
+# Abstract
+This report is the demonstration of the solutions to some statistical questions regarding a sample population of male and female and their physical attributes like height, weight and physical activities. Arising questions should be if there is any relationship between height and weight, do male and female differ in heights significantly and if male participate in physical activity than the opposite gender, etc.
+
+The approach to yield any valid solutions should be drawn from statistical tests. Throughout the report, these questions are answered based on statistical results.
+
+# Introduction
+Based on a given data set that outlines some physical attributes of male and female sample population, solutions to the following research questions will be discussed:
+
+- Is there a linear relationship between height and weight?
+- Is the mean height of male and female the same? You can assume equal variances between male and
+female heights.
+- Is there any association between gender and the amount of physical activity?
+
+The three statistical tests that would be discussed are linear regression, t test and the $\chi^2$ test. 
+
+Based on a first person statistical experiment on a particular data set 'project.csv', there is a linear relationship between height and weight. The mean height of male and female are different. Lastly, the gender does not seem to affect each individuals physical activities. The last remark is that the report is compatible with a different data set, if the structure is identical. This means these results may change.
+
+
+\pagebreak
+
+# Research question 1
+
+## Methods
+The first research question is whether there is a linear relationship between heights and weights of the sample population. The test should be able to detect the linear relationship $\beta$ between the two variables. In this way, the linear regression test should be used.
+
+The method to secure the required data is simple. Out of 5 of the variables ID, gender, height, weight, phys, just taking height and weight and inserting them into the lm() function (@stats) would yield the required results. This is the actual code: lm(height~weight, dat). The use of the data set is given from a simple designation: dat <- read_csv("project.csv").
+
+```{r showdat,echo=FALSE, message=TRUE, warning=FALSE, fig.align="center"}
+
+print(tbl_df(dat),n=18)
+
+```
+
+The above is the 'dat' data set.
+
+\pagebreak
+
+## Results
+
+### Exploratory Data Analysis
+Making a proper linear regression decision requires the linearity between the two variables, constant variance and normality of the residuals. In fact, these are all assumed to hold already. The following graphs must show the linearity, evenly dispersed residuals and a bell shaped histogram of the residuals vs fitted values:
+
+```{r assumption, echo=FALSE, message=FALSE, warning=FALSE, fig.align="center"}
+  #Prepare assumption for lm
+  D <- lm(height ~ weight,dat)
+  a <- ggplot2::ggplot(dat,aes(x=height,y=weight))+ geom_point() + stat_smooth(method="lm", col="red") +ggtitle("I) Y vs X")
+
+  b <- ggplot2::ggplot(dat)+geom_point(mapping=aes(x=D$fitted.values ,y=D$residuals)) + geom_hline(yintercept=0,lwd=2)+ggtitle("II) Residual plot")+ylab("Residuals")+xlab("Fitted values")
+
+  c <- ggplot2::ggplot(dat)+geom_histogram(mapping=aes(x=D$residuals),bins=40) +ggtitle("III) Distribution is normal")+xlab("Residuals")
+
+  #Prepare assumption for ttest
+  d <- ggplot2::ggplot(dat, aes(sample=height, group=gender, colour=gender))+geom_qq()+geom_qq_line()+xlab("theoretical")+ylab("sample")
+
+  e <- dat %>% dplyr::group_by(gender) %>% dplyr::summarise(n=n(),mu=mean(height),sd=sd(height))
+
+  #Preapre assumption for chitest
+  datm <- dat %>% dplyr::filter(gender=="Male") %>% dplyr::select(phys)
+  datf <- dat %>% dplyr::filter(gender=="Female") %>% dplyr::select(phys)
+
+  datmn <- datm %>% dplyr::filter(phys=="None") %>% dplyr::count()
+  datmm <- datm %>% dplyr::filter(phys=="Moderate") %>% dplyr::count()
+  datmi <- datm %>% dplyr::filter(phys=="Intense") %>% dplyr::count()
+
+  datfn <- datf %>% dplyr::filter(phys=="None") %>% dplyr::count()
+  datfm <- datf %>% dplyr::filter(phys=="Moderate") %>% dplyr::count()
+  datfi <- datf %>% dplyr::filter(phys=="Intense") %>% dplyr::count()
+
+  table <- dplyr::tibble(Male=c(datmn[[1]],datmm[[1]],datmi[[1]]),Female=c(datfn[[1]],datfm[[1]],datfi[[1]]))
+
+  print((a+b)/c)
+
+```
+
+Once again, the I Y vs X plot must show the dots lining up forming a linear pattern. The II residual graph must show the dots dispersed evenly around the 0 horizontal line, which confirms that the residuals vary around the red linear line in I). Otherwise, the residuals' equal variance assumption is broken. The III graph must show the bell-shape to confirm the normality of the residuals.
+
+Once it is clear that these assumptions are met, the P value can then be computed directly using the r function lm().
+
+### Outcome
+
+The $\beta$ is being tested, so the sampling distribution is: $\hat{\beta}\sim N(\beta,\frac{\sigma^2}{S_{xx}})$.
+
+\
+$H_{0}:\beta=0$ against $H_{1}:\beta \neq 0$
+\
+
+We assume the linear regression model is appropriate: $Y_{i}=\alpha+\beta X_{i}+\epsilon_{i}$, where $\epsilon_{i}$ are independent and identically distributed $N(0,\sigma^2)$.
+
+Test statistic: $\tau=\frac{\hat{\beta}}{s_{Y \mid X}/\sqrt{S_{xx}}} \sim t_{n-2}$ under $H_{0}$.
+
+$\tau_{obs}=$ `r summary(lm(formula = height ~ weight, data = dat))$coefficients[[5]]`
+
+P value = `r broom::glance(lm(height~weight,dat))$p.value`
+
+\pagebreak
+
+## Conclusion
+
+The computed P value is `r broom::glance(lm(height~weight,dat))$p.value`. With this P value, it is possible to make the conclusion about the test:
+
+```{r pvaluelm, echo=FALSE, message=TRUE, warning=FALSE, fig.align="center" }
+
+if (broom::glance(lm(height~weight,dat))$p.value < 0.05) {
+  cat("REJECT H0: ", broom::glance(lm(height~weight,dat))$p.value, " < 0.05\n \n")
+  cat(str_wrap("There is a relationship between height and weight: As the P-value is very small, we have very strong evidence to reject H0. I.E. very strong evidence that the slope parameter is significant and there is a relationship between the height and weight of the sample population."), "\n")
+} else {
+  cat("DO NOT REJECT H0: ", broom::glance(lm(height~weight,dat))$p.value, " > 0.05\n \n")
+  cat(str_wrap("There isn't any relationship between height and weight: As the P-value is large, we have no evidence to reject H0. I.E. no evidence that the slope parameter is significant and there isn't any relationship between the height and weight of the sample population."), "\n")
+}
+
+datm <- dat %>% filter(gender=="Male") %>% select(height)
+datf <- dat %>% filter(gender=="Female") %>% select(height)
+
+test <- t.test(datm,datf,var.equal=TRUE)
+
+```
+
+\pagebreak
+
+# Research question 2
+
+## Methods
+The next test is about the mean heights of male and female. It is to test if they are same or not. Since the issue is about two different means from two different samples, and the conclusion must be made about them being equal or not equal, the two sample t test should be used. The data set contains information about male and female heights:
+
+```{r tibble, echo=FALSE, message=FALSE, warning=FALSE, fig.align="center"}
+print(tbl_df(dat), n=15)
+```
+
+Using filter and select functions (@dplyr), two new variables can be assigned to contain only male heights and female heights. Then, it is possible to run a t test function using the two variables: t.test(datm, datf, var.equal = TRUE). It is given that the equal variance assumption holds. This means var.equal is TRUE.
+
+```{r datmdatf, echo=FALSE, message=FALSE, warning=FALSE, fig.align="center"}
+datm <- dat %>% filter(gender=="Male") %>% select(height)
+datf <- dat %>% filter(gender=="Female") %>% select(height)
+
+print(tbl_df(datm),n=12)
+```
+The above is an example of the male height data frame. It only contains one column which is required to work with the t.test(). The data frame is assigned as 'datm' and the other female data frame is named 'datf'.
+
+\pagebreak
+
+## Results
+
+### Exploratory Data Analysis
+2 conditions must meet to carry out this test. The normal distribution and equal variance must hold. Firstly, the QQ plot can be examined to confirm the normality assumption:
+
+```{r qqplot, echo=FALSE, message=FALSE, warning=FALSE, fig.align="center"}
+d <- ggplot2::ggplot(dat, aes(sample=height, group=gender, colour=gender))+geom_qq()+geom_qq_line()+xlab("theoretical")+ylab("sample")
+e <- dat %>% group_by(gender) %>% summarise(n=n(),mu=mean(height),sd=sd(height))
+
+print(d)
+
+test <- t.test(datm,datf,var.equal=TRUE)
+```
+
+The above graph must show that the dots are lined around the sample qq line, which confirms that they are normally distributed. Once this is checked, the assumption is confirmed.
+
+On top of this, the equal variance is assumed. The larger standard deviation divided by the smaller must not exceed 2. The larger is `r max(e$sd)` and the smaller is `r min(e$sd)`. The division gives `r max(e$sd)/min(e$sd)`.
+
+### Outcome
+
+The t test is based on equal variances assumption. Assuming the null hypothesis $H_{0}:\mu_{1} = \mu_{2}$, the resulting sampling distribution is $\frac{\overline{X_{1}}-\overline{X_{2}}}{\sigma\sqrt{\frac{1}{n_{1}}+\frac{1}{n_{2}}}}\sim N(0,1)$.
+
+\
+$H_{0}:\mu_{1}=\mu_{2}$ against $H_{1}:\mu_{1}\neq\mu_{2}$
+\
+
+Test statistic: $\tau=\frac{\overline{X_{1}}-\overline{X_{2}}}{s_{p}\sqrt{\frac{1}{n_{1}}+\frac{1}{n_{2}}}}\sim t_{n_{1}+n_{2}-2}$, if $H_{0}$ is true.
+
+$\tau_{obs}=$ `r test[[1]][[1]]`.
+
+P value = `r test[[3]][[1]]`
+
+\pagebreak
+
+## Conclusion
+The t.test(datm, datf, var.equal = TRUE) function outputs the P value (`r test[[3]][[1]]`) with which the conclusion can be made:
+
+```{r pvaluettest, echo=FALSE, message=TRUE, warning=FALSE, fig.align="center" }
+
+if (test[[3]][[1]] < 0.05) {
+  cat("REJECT H0: ", test[[3]][[1]], " < 0.05\n \n")
+  cat(str_wrap("The mean height of male and female are NOT the same: As the P-value is very small, we have very strong evidence to reject H0. I.E. very strong evidence that the mean height of male is not the same as the mean height of female."), "\n")
+} else {
+  cat("DO NOT REJECT H0: ", test[[3]][[1]], " > 0.05\n \n")
+  cat(str_wrap("The mean height of male and female are the same: As the P-value is large, we have no evidence to reject H0. I.E. no evidence that the mean height of male is not the same as the mean height of female."), "\n")
+}
+
+  #chi test
+  datm <- dat %>% filter(gender=="Male") %>% select(phys)
+  datf <- dat %>% filter(gender=="Female") %>% select(phys)
+
+  datmn <- datm %>% filter(phys=="None") %>% count()
+  datmm <- datm %>% filter(phys=="Moderate") %>% count()
+  datmi <- datm %>% filter(phys=="Intense") %>% count()
+
+  datfn <- datf %>% filter(phys=="None") %>% count()
+  datfm <- datf %>% filter(phys=="Moderate") %>% count()
+  datfi <- datf %>% filter(phys=="Intense") %>% count()
+
+  table <- dplyr::tibble(Male=c(datmn[[1]],datmm[[1]],datmi[[1]]),Female=c(datfn[[1]],datfm[[1]],datfi[[1]]))
+  test <- chisq.test(table,correct=FALSE)
+
+```
+
+\pagebreak
+
+# Research question 3
+
+## Methods
+The last test is to see if male and female have different amounts of physical activity. In other words, if gender affects the amount of physical activity. In terms of statistics, this is equivalent to saying there is association between the two variables gender and physical activity. Intuitively, the test of independence should be the suitable test in this context, the $\chi^2$ test.
+
+Preparing the right form of data to make the chi.test() function work is not straight forward in this case. This is because the data frame only contains information in a way that is not yet appropriate for a $\chi^2$ test:
+
+```{r showdat2,echo=FALSE, message=TRUE, warning=FALSE, fig.align="center"}
+
+print(tbl_df(dat),n=18)
+
+```
+
+The ideal form of the data frame is to have Male and Female as the horizontal marginal variables, and the three degrees of physical activity as the vertical marginal variables like the following:
+
+```{r marginschitest, echo=FALSE, message=FALSE, warning=FALSE, fig.align="center"}
+  
+  print(mutate(tibble('Physical activity'=c("None","Moderate","Intense")),tibble('Male'=c(NA,NA,NA)),tibble('Female'=c(NA,NA,NA))))
+  
+```
+
+Using filter, select and count (@dplyr), all 6 types of data such as Male with no physical activity and Male with a moderate physical activity, etc were retrieved. The following is the example of the Male with no physical activity:
+
+```{r datmn, echo=FALSE, message=FALSE, warning=FALSE, fig.align="center"}
+  
+  datmn <- datm %>% filter(phys=="None")
+  print(tbl_df(datmn),n=15)
+  
+```
+
+All of these 6 data frames are converted into pure integers using the count() function, which counts how many rows there are in each data frames. For instance, the above data frame converts into `r count(datmn)`.
+
+The consolidation gives:
+
+```{r chitestfinal, echo=FALSE, message=FALSE, warning=FALSE, fig.align="center"}
+  
+  print(mutate(tibble('Physical activity'=c("None","Moderate","Intense")),table))
+  
+```
+
+\pagebreak
+
+## Results
+### Exploratory Data Analysis
+Since the test is based on the normal approximation, all entries ($O_{ij}$ and $E_{ij}$) in the table below must be at least 5:
+
+```{r chitestassumption, echo=FALSE, message=FALSE, warning=FALSE, fig.align="center"}
+  
+  print(mutate(tibble('Physical activity'=c("None","Moderate","Intense")),table))
+  
+```
+
+Assuming they are all greater than or equal to 5, the P value can then be generated with the chisq.test() function.
+
+### Outcome
+
+A $\chi^2$ distribution is constructed by squaring a single standard normal distribution: $Q\sim \chi_{i}^2$ where Q is an example of a $\chi^2$ distribution. Then $Q=Z^2$ where $Z\sim N(0,1)$.
+
+\
+$H_{0}:$ the two variables are independent against each other. $H_{1}:$ not $H_{0}$.
+\
+
+The Pearson's $\chi^2$ test-statistic (without continuity correction) for the test of independence is:
+$\tau=\sum^{r}_{i=1}\sum^{c}_{j=1}\frac{(O_{ij}-E_{ij})^2}{E_{ij}}\sim \chi_{(r-1)(c-1)}^2$, under $H_{0}$.
+
+$\tau_{obs}=$ `r test[[1]][[1]]`
+\
+P value = `r test[[3]][[1]]`
+
+\pagebreak
+
+## Conclusion
+The P value is `r test[[3]][[1]]`. Based on this P value, the conclusion to the test can be made:
+
+```{r chitest, echo=FALSE, message=TRUE, warning=FALSE, fig.align="center"}
+
+if (test[[3]][[1]] < 0.05){
+  cat("REJECT H0: ", test[[3]][[1]], " < 0.05\n \n")
+  cat(str_wrap("Gender affects the amount of physical activity: As the P-value is very small, we have very strong evidence to reject H0. I.E. very strong evidence that the two variables are dependent against each other. Gender affects the physical activity."),"\n")
+} else {
+  cat("DO NOT REJECT H0: ", test[[3]][[1]], " > 0.05\n \n")
+  cat(str_wrap("Gender does NOT affect the amount of physical activity: As the P-value is large, we have no evidence to reject H0. I.E. no evidence that the two variables are dependent against each other. The two variables are independent against each other and there is no association between gender and the amount of physical acitivity."), "\n")
+}
+
+```
+
+\pagebreak
+
+# References
